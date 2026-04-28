@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mô Phỏng Thí Nghiệm CO₂ + Ca(OH)₂</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #111827;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* Ống nghiệm / Cốc */
+        .beaker-container {
+            position: relative;
+            width: 180px;
+            height: 250px;
+            margin: 30px auto 0 auto; 
+        }
+
+        /* Miệng cốc mặt sau (Nửa trên) */
+        .beaker-top-back {
+            position: absolute;
+            top: -20px; left: 0; width: 100%; height: 40px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            clip-path: inset(0 0 50% 0); /* Cắt bỏ nửa dưới */
+            z-index: 1;
+        }
+
+        /* Đáy cốc và Thân cốc */
+        .beaker {
+            position: absolute;
+            inset: 0;
+            border-radius: 0 0 50% 50% / 0 0 20px 20px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-top: none;
+            background: rgba(255, 255, 255, 0.02);
+            box-shadow: 
+                inset 0 -20px 30px rgba(0,0,0,0.8),
+                0 20px 30px rgba(0,0,0,0.5);
+            z-index: 2;
+        }
+
+        /* Nhóm chất lỏng (Bỏ z-index để cho phép đan xen 3D với thân cốc) */
+        .liquid-group {
+            position: absolute;
+            bottom: 2px;
+            left: 2px;
+            right: 2px;
+            height: 65%; 
+        }
+
+        /* Mặt chất lỏng mặt sau (Nửa trên) */
+        .liquid-surface-back {
+            position: absolute;
+            top: -20px; left: 0; width: 100%; height: 40px;
+            border-radius: 50%;
+            background-color: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            clip-path: inset(0 0 50% 0); /* Cắt bỏ nửa dưới */
+            z-index: 3;
+        }
+
+        /* Ống dẫn khí (Nằm giữa mặt sau và mặt trước) */
+        .tube {
+            position: absolute;
+            bottom: 18px; 
+            left: 50%;
+            transform: translateX(-50%);
+            width: 10px;
+            height: 300px; 
+            background: linear-gradient(to right, #1e293b, #64748b, #1e293b);
+            border-radius: 5px;
+            box-shadow: 3px 0 5px rgba(0,0,0,0.5);
+            z-index: 4; 
+        }
+
+        /* Thân chất lỏng (Che khuất và làm mờ ống dẫn) */
+        .liquid-body {
+            position: absolute;
+            inset: 0;
+            border-radius: 0 0 50% 50% / 0 0 20px 20px;
+            overflow: hidden;
+            background-color: rgba(255, 255, 255, 0.03); 
+            z-index: 5;
+        }
+
+        /* Mặt chất lỏng mặt trước (Nửa dưới) */
+        .liquid-surface-front {
+            position: absolute;
+            top: -20px; left: 0; width: 100%; height: 40px;
+            border-radius: 50%;
+            background-color: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-bottom: 2px solid rgba(255, 255, 255, 0.6); 
+            clip-path: inset(50% 0 0 0); /* Cắt bỏ nửa trên */
+            box-shadow: inset 0 -5px 10px rgba(0, 0, 0, 0.15), inset 0 5px 10px rgba(255, 255, 255, 0.15);
+            z-index: 6;
+        }
+
+        /* Độ bóng lấp lánh (glare) mặt trước mặt nước */
+        .liquid-surface-front::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 45%, rgba(255,255,255,0) 100%);
+            pointer-events: none;
+        }
+
+        /* Miệng cốc mặt trước (Nửa dưới) */
+        .beaker-top-front {
+            position: absolute;
+            top: -20px; left: 0; width: 100%; height: 40px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            border-bottom-color: rgba(255, 255, 255, 0.6);
+            clip-path: inset(50% 0 0 0); /* Cắt bỏ nửa trên */
+            box-shadow: inset 0 -5px 10px rgba(0,0,0,0.3);
+            z-index: 7;
+        }
+
+        /* Độ bóng của kính cường lực 3D (Ánh sáng) */
+        .beaker-glare {
+            position: absolute;
+            inset: 0;
+            border-radius: 0 0 50% 50% / 0 0 20px 20px;
+            background: linear-gradient(90deg, 
+                rgba(255,255,255,0.05) 0%, 
+                rgba(255,255,255,0.4) 10%, 
+                rgba(255,255,255,0.0) 25%, 
+                rgba(255,255,255,0.0) 75%, 
+                rgba(255,255,255,0.2) 90%, 
+                rgba(255,255,255,0.05) 100%);
+            z-index: 8;
+            pointer-events: none;
+        }
+
+        /* Lớp vẩn đục (Canxi Cacbonat) */
+        .cloudy-layer {
+            position: absolute;
+            inset: 0;
+            background-color: rgba(226, 232, 240, 0); 
+            backdrop-filter: blur(0px);
+            -webkit-backdrop-filter: blur(0px);
+            transition: background-color 0.2s ease, backdrop-filter 0.2s ease;
+        }
+
+        /* Lớp vẩn đục trên bề mặt 3D */
+        .cloudy-surface {
+            position: absolute;
+            inset: 0;
+            background-color: transparent; 
+            transition: background-color 0.2s ease;
+        }
+
+        /* Lớp hạt nhiễu (kết tủa lợn cợn) */
+        .noise-overlay {
+            position: absolute;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.04' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            opacity: 0; 
+            mix-blend-mode: overlay;
+            animation: drift 15s infinite linear;
+            pointer-events: none;
+        }
+
+        @keyframes drift {
+            0% { background-position: 0 0; }
+            100% { background-position: 100px 100px; }
+        }
+
+        /* Bong bóng khí */
+        .bubble {
+            position: absolute;
+            bottom: 25px;
+            left: 50%;
+            background-color: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            transform: translateX(-50%);
+            animation: rise 1.5s infinite ease-in;
+        }
+
+        @keyframes rise {
+            0% {
+                bottom: 25px; 
+                transform: translateX(-50%) scale(0.5);
+                opacity: 0.8;
+            }
+            50% {
+                transform: translateX(calc(-50% + (Math.random() * 12 - 6)px)) scale(1);
+            }
+            100% {
+                bottom: 95%;
+                transform: translateX(-50%) scale(1.3);
+                opacity: 0;
+            }
+        }
+
+        /* Range slider styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 28px;
+            width: 28px;
+            border-radius: 50%;
+            background: #10b981;
+            cursor: pointer;
+            margin-top: -11px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #4b5563;
+            border-radius: 3px;
+        }
+        
+        .equation-box {
+            transition: all 0.3s ease;
+            animation: fadeIn 0.4s ease-out; 
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .equation-active {
+            background-color: rgba(20, 83, 45, 0.4);
+            border-color: #22c55e;
+            transform: scale(1.02);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="max-w-4xl w-full bg-gray-800 sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col sm:m-4 border-y sm:border-x border-gray-700">
+        
+        <!-- Tựa đề phía trên cùng (Màu cam đỏ) -->
+        <div class="w-full bg-gray-800 border-b border-gray-700 py-4 sm:py-5 text-center">
+            <h1 class="text-xl md:text-3xl font-extrabold text-[#ff4500] tracking-wide drop-shadow-md px-2">
+                PHẢN ỨNG CO₂ + Ca(OH)₂
+            </h1>
+        </div>
+
+        <div class="flex flex-col md:flex-row w-full">
+            <!-- Khu vực hình ảnh thí nghiệm -->
+            <div class="bg-gray-900 p-5 sm:p-8 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-gray-700 md:w-5/12">
+                
+                <div class="beaker-container mb-2">
+
+                    <!-- Cốc mặt sau -->
+                    <div class="beaker-top-back"></div>
+                    <div class="beaker"></div>
+
+                    <!-- Nhóm chất lỏng và ống dẫn (Đan xen lớp 3D) -->
+                    <div class="liquid-group">
+                        <!-- Mặt nước mặt sau -->
+                        <div class="liquid-surface-back">
+                            <div class="cloudy-surface" id="cloudySurfaceBack"></div>
+                        </div>
+                        
+                        <!-- Ống dẫn xuyên qua -->
+                        <div class="tube"></div>
+                        
+                        <!-- Thân chất lỏng che ống dẫn -->
+                        <div class="liquid-body">
+                            <div id="bubbleContainer" class="absolute w-full h-full bottom-0 left-0 overflow-hidden" style="z-index: 1; pointer-events: none;"></div>
+                            <div class="cloudy-layer" id="cloudyLayer" style="z-index: 2;">
+                                <div class="noise-overlay" id="noiseOverlay"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Mặt nước mặt trước -->
+                        <div class="liquid-surface-front">
+                            <div class="cloudy-surface" id="cloudySurfaceFront"></div>
+                        </div>
+                    </div>
+
+                    <!-- Cốc mặt trước và phản quang -->
+                    <div class="beaker-top-front"></div>
+                    <div class="beaker-glare"></div>
+                </div>
+
+                <!-- Chú thích cốc -->
+                <div class="flex flex-col items-center mb-6 z-10 relative">
+                    <div class="w-0.5 h-3 bg-gray-500 mb-1"></div>
+                    <span class="bg-blue-900 bg-opacity-40 border border-blue-700 text-blue-200 text-xs font-bold px-3 py-1 rounded-full shadow-sm">
+                        DUNG DỊCH Ca(OH)₂
+                    </span>
+                </div>
+
+                <div class="w-full max-w-xs mt-2">
+                    <label for="co2Slider" class="block text-sm font-medium text-gray-300 mb-2 text-center">
+                        Lượng khí CO₂ đã sục vào: <span id="co2Value" class="font-bold text-green-400">0</span>%
+                    </label>
+                    <input type="range" id="co2Slider" min="0" max="100" value="0" class="w-full">
+                    
+                    <div class="flex justify-center mt-6 space-x-2 sm:space-x-3">
+                        <button id="pumpBtn" class="bg-green-600 hover:bg-green-500 text-white px-3 sm:px-4 py-2 rounded-lg font-semibold shadow transition-colors flex items-center text-sm sm:text-base">
+                            <svg class="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                            Bơm liên tục
+                        </button>
+                        <button id="resetBtn" class="bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 sm:px-4 py-2 rounded-lg font-semibold shadow transition-colors flex items-center text-sm sm:text-base">
+                            <svg class="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                            Làm lại
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Khu vực lý thuyết và giải thích -->
+            <div class="p-5 sm:p-8 flex flex-col md:w-7/12">
+                
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold text-gray-300 mb-2">Hiện tượng quan sát được:</h3>
+                    <div class="bg-blue-900 bg-opacity-30 border-l-4 border-blue-500 p-4 rounded-r-lg min-h-[80px] flex items-center">
+                        <p id="observationText" class="text-blue-100 text-md">
+                            Dung dịch Ca(OH)₂ (nước vôi trong) ban đầu hoàn toàn trong suốt. Hãy kéo thanh trượt hoặc nhấn "Bơm liên tục" để sục khí CO₂ vào.
+                        </p>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-300 mb-3">Phương trình hóa học:</h3>
+                    
+                    <div id="eqPlaceholder" class="text-gray-400 italic bg-gray-700 bg-opacity-50 p-4 rounded-lg border border-gray-600 border-dashed text-center">
+                        Phần giải thích các phương trình phản ứng sẽ xuất hiện sau khi thí nghiệm kết thúc (100%).
+                    </div>
+
+                    <!-- Phương trình 1 -->
+                    <div id="eq1" class="equation-box border-2 border-transparent p-4 rounded-lg mb-3 bg-gray-700 hidden">
+                        <p class="font-medium text-gray-200 mb-1">Giai đoạn 1: Nước vôi trong vẩn đục trắng</p>
+                        <p class="text-center font-mono text-lg text-blue-300">
+                            CO₂ + Ca(OH)₂ &rarr; CaCO₃&darr; + H₂O
+                        </p>
+                        <p class="text-sm text-gray-400 mt-2 text-center">(Canxi cacbonat - chất rắn màu trắng không tan)</p>
+                    </div>
+
+                    <!-- Phương trình 2 -->
+                    <div id="eq2" class="equation-box border-2 border-transparent p-4 rounded-lg bg-gray-700 hidden">
+                        <p class="font-medium text-gray-200 mb-1">Giai đoạn 2: Kết tủa tan ra (khi dư CO₂)</p>
+                        <p class="text-center font-mono text-lg text-blue-300">
+                            CaCO₃ + CO₂ + H₂O &rarr; Ca(HCO₃)₂
+                        </p>
+                        <p class="text-sm text-gray-400 mt-2 text-center">(Canxi hidrocacbonat - muối tan trong nước)</p>
+                    </div>
+                </div>
+                
+                <div class="mt-auto pt-6">
+                    <p class="text-sm text-gray-400 italic">
+                        *Mẹo: Thí nghiệm này thường được dùng để nhận biết khí CO₂ vì hiện tượng vẩn đục rất dễ quan sát.
+                    </p>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        const slider = document.getElementById('co2Slider');
+        const co2ValueDisplay = document.getElementById('co2Value');
+        const cloudyLayer = document.getElementById('cloudyLayer');
+        const cloudySurfaceFront = document.getElementById('cloudySurfaceFront');
+        const cloudySurfaceBack = document.getElementById('cloudySurfaceBack');
+        const noiseOverlay = document.getElementById('noiseOverlay');
+        const observationText = document.getElementById('observationText');
+        const eqPlaceholder = document.getElementById('eqPlaceholder');
+        const eq1 = document.getElementById('eq1');
+        const eq2 = document.getElementById('eq2');
+        const pumpBtn = document.getElementById('pumpBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const bubbleContainer = document.getElementById('bubbleContainer');
+
+        let isPumping = false;
+        let pumpInterval;
+        let bubbleInterval;
+
+        function updateExperiment(val) {
+            co2ValueDisplay.textContent = val;
+            
+            if (val == 0) {
+                cloudyLayer.style.backgroundColor = `transparent`;
+                cloudySurfaceFront.style.backgroundColor = `transparent`;
+                cloudySurfaceBack.style.backgroundColor = `transparent`;
+                cloudyLayer.style.backdropFilter = `blur(0px)`;
+                cloudyLayer.style.webkitBackdropFilter = `blur(0px)`;
+                noiseOverlay.style.opacity = 0;
+
+                observationText.textContent = "Dung dịch Ca(OH)₂ (nước vôi trong) ban đầu, trong suốt.";
+                
+                eqPlaceholder.classList.remove('hidden');
+                eq1.classList.add('hidden');
+                eq2.classList.add('hidden');
+            }
+            else if (val <= 30) {
+                cloudyLayer.style.backgroundColor = `transparent`;
+                cloudySurfaceFront.style.backgroundColor = `transparent`;
+                cloudySurfaceBack.style.backgroundColor = `transparent`;
+                cloudyLayer.style.backdropFilter = `blur(0px)`;
+                cloudyLayer.style.webkitBackdropFilter = `blur(0px)`;
+                noiseOverlay.style.opacity = 0;
+
+                observationText.innerHTML = "Khí CO₂ đang được sục vào. <b>Chưa có hiện tượng vẩn đục</b> (Cần vài giây để lượng kết tủa đủ lớn).";
+                
+                eqPlaceholder.classList.remove('hidden');
+                eq1.classList.add('hidden');
+                eq2.classList.add('hidden');
+            } 
+            else if (val <= 65) {
+                let progress = (val - 30) / 35; 
+                
+                let bodyColor = `rgba(226, 232, 240, ${progress * 0.75})`;
+                // Đảm bảo mặt nước luôn có độ trong nhất định để thấy rõ ống
+                let surfaceColor = `rgba(241, 245, 249, ${progress * 0.35})`; 
+
+                cloudyLayer.style.backgroundColor = bodyColor;
+                cloudySurfaceFront.style.backgroundColor = surfaceColor;
+                cloudySurfaceBack.style.backgroundColor = surfaceColor;
+
+                cloudyLayer.style.backdropFilter = `blur(${progress * 15}px)`;
+                cloudyLayer.style.webkitBackdropFilter = `blur(${progress * 15}px)`;
+                
+                noiseOverlay.style.opacity = progress * 0.75;
+
+                if (val == 65) {
+                    observationText.innerHTML = "Lượng kết tủa CaCO₃ <b>đạt cực đại</b>. Dung dịch đục trắng như sữa hoàn toàn.";
+                } else {
+                    observationText.innerHTML = "Dung dịch <b>bắt đầu vẩn đục</b> do phản ứng tạo ra kết tủa trắng Canxi cacbonat (CaCO₃).";
+                }
+                
+                eqPlaceholder.classList.remove('hidden');
+                eq1.classList.add('hidden');
+                eq2.classList.add('hidden');
+            } 
+            else {
+                let progress = (val - 65) / 35; 
+                let reverseProgress = 1 - progress; 
+                
+                let bodyColor = `rgba(226, 232, 240, ${reverseProgress * 0.75})`;
+                let surfaceColor = `rgba(241, 245, 249, ${reverseProgress * 0.35})`;
+
+                cloudyLayer.style.backgroundColor = bodyColor;
+                cloudySurfaceFront.style.backgroundColor = surfaceColor;
+                cloudySurfaceBack.style.backgroundColor = surfaceColor;
+
+                cloudyLayer.style.backdropFilter = `blur(${reverseProgress * 15}px)`;
+                cloudyLayer.style.webkitBackdropFilter = `blur(${reverseProgress * 15}px)`;
+                
+                noiseOverlay.style.opacity = reverseProgress * 0.75;
+
+                if (val == 100) {
+                    observationText.innerHTML = "Kết tủa đã <b>tan hoàn toàn</b>, dung dịch trở nên trong suốt trở lại.";
+                    stopPumping(); 
+                    
+                    // Chỉ hiển thị giải thích khi thí nghiệm đạt 100%
+                    eqPlaceholder.classList.add('hidden');
+                    eq1.classList.remove('hidden');
+                    eq2.classList.remove('hidden');
+                    eq1.classList.add('equation-active');
+                    eq2.classList.add('equation-active');
+                } else {
+                    observationText.innerHTML = "Khi tiếp tục sục thêm CO₂, <b>kết tủa trắng bắt đầu tan dần</b> tạo thành muối tan Canxi hidrocacbonat (Ca(HCO₃)₂).";
+                    
+                    eqPlaceholder.classList.remove('hidden');
+                    eq1.classList.add('hidden');
+                    eq2.classList.add('hidden');
+                }
+            }
+        }
+
+        function createBubble() {
+            if (slider.value >= 100) return;
+            const bubble = document.createElement('div');
+            bubble.classList.add('bubble');
+            
+            const size = Math.random() * 8 + 4; 
+            bubble.style.width = `${size}px`;
+            bubble.style.height = `${size}px`;
+            bubble.style.left = `calc(50% + ${Math.random() * 20 - 10}px)`;
+            
+            bubble.style.animationDuration = `${Math.random() * 0.5 + 1}s`;
+
+            bubbleContainer.appendChild(bubble);
+
+            setTimeout(() => {
+                bubble.remove();
+            }, 1500);
+        }
+
+        slider.addEventListener('input', (e) => {
+            updateExperiment(e.target.value);
+            if(Math.random() > 0.5) createBubble();
+        });
+
+        function togglePump() {
+            if (isPumping) {
+                stopPumping();
+            } else {
+                if (slider.value >= 100) return; 
+                isPumping = true;
+                pumpBtn.innerHTML = `<svg class="w-5 h-5 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Đang bơm...`;
+                pumpBtn.classList.replace('bg-green-600', 'bg-red-600');
+                pumpBtn.classList.replace('hover:bg-green-500', 'hover:bg-red-500');
+                
+                pumpInterval = setInterval(() => {
+                    let val = parseInt(slider.value);
+                    if (val < 100) {
+                        val += 1;
+                        slider.value = val;
+                        updateExperiment(val);
+                    } else {
+                        stopPumping();
+                    }
+                }, 100); 
+
+                bubbleInterval = setInterval(createBubble, 150);
+            }
+        }
+
+        function stopPumping() {
+            isPumping = false;
+            clearInterval(pumpInterval);
+            clearInterval(bubbleInterval);
+            pumpBtn.innerHTML = `<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg> Bơm liên tục`;
+            pumpBtn.classList.replace('bg-red-600', 'bg-green-600');
+            pumpBtn.classList.replace('hover:bg-red-500', 'hover:bg-green-500');
+        }
+
+        pumpBtn.addEventListener('click', togglePump);
+
+        resetBtn.addEventListener('click', () => {
+            stopPumping();
+            slider.value = 0;
+            updateExperiment(0);
+            bubbleContainer.innerHTML = ''; 
+        });
+
+        updateExperiment(0);
+    </script>
+</body>
+</html>
